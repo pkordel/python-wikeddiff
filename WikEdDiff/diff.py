@@ -2144,19 +2144,19 @@ class WikEdDiff:
             minLeft = self.config.clipCharsLeft
 
         # Cycle through fragments
-        fragment = -1
-        while fragment + 1 < len(fragments):
-            fragment += 1
+        fragmentsLength = len(fragments)
+        for index, fragment in enumerate(fragments):
 
             # Skip if not an unmoved and unchanged block
-            type = fragments[fragment].type
-            color = fragments[fragment].color
+            type = fragment.type
+            color = fragment.color
             if type != '=' or color != 0:
                 continue
 
             # Skip if too short for clipping
-            text = fragments[fragment].text
-            if len(text) < minRight and len(text) < minLeft:
+            text = fragment.text
+            textLength = len(text)
+            if textLength < minRight and textLength < minLeft:
                 continue
 
             # Get line positions including start and end
@@ -2165,10 +2165,10 @@ class WikEdDiff:
             for regExpMatch in self.config.regExp.clipLine.finditer(text):
                 lines.append( regExpMatch.start() )
                 lastIndex = regExpMatch.end()
-            if lines[0] != 0:
-                lines.insert( 0, 0 )
-            if lastIndex != len(text):
-                lines.append(len(text))
+            # if lines[0] != 0:
+            #     lines.insert( 0, 0 )
+            if lastIndex != textLength:
+                lines.append(textLength)
 
             # Get heading positions
             headings = []
@@ -2185,8 +2185,8 @@ class WikEdDiff:
                 lastIndex = regExpMatch.end()
             if len(paragraphs) == 0 or paragraphs[0] != 0:
                 paragraphs.insert( 0, 0 )
-            if lastIndex != len(text):
-                paragraphs.append( len(text) )
+            if lastIndex != textLength:
+                paragraphs.append( textLength )
 
             # Determine ranges to keep on left and right side
             rangeRight = None
@@ -2195,9 +2195,9 @@ class WikEdDiff:
             rangeLeftType = ''
 
             # Find clip pos from left, skip for first non-container block
-            if fragment != 2:
+            if index != 2:
                 # Maximum lines to search from left
-                rangeLeftMax = len(text)
+                rangeLeftMax = textLength
                 if self.config.clipLinesLeftMax < len(lines):
                     rangeLeftMax = lines[self.config.clipLinesLeftMax]
 
@@ -2212,7 +2212,8 @@ class WikEdDiff:
 
                 # Find first paragraph from left
                 if rangeLeft is None:
-                    for j in range(len(paragraphs)):
+                    paragraphsLength = len(paragraphs)
+                    for j in range(paragraphsLength):
                         if (
                                 paragraphs[j] > self.config.clipParagraphLeftMax or
                                 paragraphs[j] > rangeLeftMax
@@ -2256,7 +2257,7 @@ class WikEdDiff:
                     rangeLeftType = 'fixed'
 
             # Find clip pos from right, skip for last non-container block
-            if fragment != len(fragments) - 3:
+            if index != len(fragments) - 3:
                 # Maximum lines to search from right
                 rangeRightMin = 0
                 if len(lines) >= self.config.clipLinesRightMax:
@@ -2278,7 +2279,7 @@ class WikEdDiff:
                 if rangeRight is None:
                     for j in range(len(paragraphs) - 1, -1, -1):
                         if (
-                                paragraphs[j] < len(text) - self.config.clipParagraphRightMax or
+                                paragraphs[j] < textLength - self.config.clipParagraphRightMax or
                                 paragraphs[j] < rangeRightMin
                                 ):
                             break
@@ -2291,24 +2292,24 @@ class WikEdDiff:
                 if rangeRight is None:
                     for j in range(len(lines) - 1, -1, -1):
                         if (
-                                lines[j] < len(text) - self.config.clipLineRightMax or
+                                lines[j] < textLength - self.config.clipLineRightMax or
                                 lines[j] < rangeRightMin
                                 ):
                             break
-                        if lines[j] < len(text) - self.config.clipLineRightMin:
+                        if lines[j] < textLength - self.config.clipLineRightMin:
                             rangeRight = lines[j]
                             rangeRightType = 'line'
                             break
 
                 # Find last blank from right
                 if rangeRight is None:
-                    startPos = len(text) - self.config.clipBlankRightMax
+                    startPos = textLength - self.config.clipBlankRightMax
                     if startPos < rangeRightMin:
                         startPos = rangeRightMin
                     lastPos = None
                     regExpMatches = self.config.regExp.clipBlank.finditer(text, pos=startPos)
                     for regExpMatch in regExpMatches:
-                        if regExpMatch.start() > len(text) - self.config.clipBlankRightMin:
+                        if regExpMatch.start() > textLength - self.config.clipBlankRightMin:
                             if lastPos is not None:
                                 rangeRight = lastPos
                                 rangeRightType = 'blank'
@@ -2317,8 +2318,8 @@ class WikEdDiff:
 
                 # Fixed number of chars from right
                 if rangeRight is None:
-                    if len(text) - self.config.clipCharsRight > rangeRightMin:
-                        rangeRight = len(text) - self.config.clipCharsRight
+                    if textLength - self.config.clipCharsRight > rangeRightMin:
+                        rangeRight = textLength - self.config.clipCharsRight
                         rangeRightType = 'chars'
 
                 # Fixed number of lines from right
@@ -2386,32 +2387,32 @@ class WikEdDiff:
                     textRight = self.config.regExp.clipTrimBlanksRight.sub( "", textRight )
 
             # Remove split element
-            fragments.pop( fragment )
+            fragments.pop( index )
 
             # Add left text to fragments list
             if rangeLeft is not None:
-                fragments.insert( fragment, Fragment( text=textLeft, type='=', color=0 ) )
-                fragment += 1
+                fragments.insert( index, Fragment( text = textLeft, type = '=', color = 0 ) )
+                index += 1
                 if omittedLeft is not None:
-                    fragments.insert( fragment, Fragment( text='', type=omittedLeft, color=0 ) )
-                    fragment += 1
+                    fragments.insert( index, Fragment( text = '', type = omittedLeft, color = 0 ) )
+                    index += 1
 
             # Add fragment container and separator to list
             if rangeLeft is not None and rangeRight is not None:
-                fragments.insert( fragment, Fragment( text='', type=']', color=0 ) )
-                fragment += 1
-                fragments.insert( fragment, Fragment( text='', type=',', color=0 ) )
-                fragment += 1
-                fragments.insert( fragment, Fragment( text='', type='[', color=0 ) )
-                fragment += 1
+                fragments.insert( index, Fragment( text = '', type = ']', color = 0 ) )
+                index += 1
+                fragments.insert( index, Fragment( text = '', type = ',', color = 0 ) )
+                index += 1
+                fragments.insert( index, Fragment( text = '', type = '[', color = 0 ) )
+                index += 1
 
             # Add right text to fragments list
             if rangeRight is not None:
                 if omittedRight is not None:
-                    fragments.insert( fragment, Fragment( text='', type=omittedRight, color=0 ) )
-                    fragment += 1
-                fragments.insert( fragment, Fragment( text=textRight, type='=', color=0 ) )
-                fragment += 1
+                    fragments.insert( index, Fragment( text = '', type = omittedRight, color = 0 ) )
+                    index += 1
+                fragments.insert( index, Fragment( text = textRight, type = '=', color = 0 ) )
+                index += 1
 
 
     ##
